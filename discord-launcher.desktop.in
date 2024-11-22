@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Exec=/bin/python3 $LAUNCHER_PATH
+Hidden=false
+NoDisplay=false
+Name=Discord Launcher
+Icon=/usr/share/discord/discord.png
+Comment=Launch discord with automatic updates on Linux.
+X-GNOME-Autostart-enabled=true
