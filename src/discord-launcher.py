@@ -25,6 +25,18 @@ def sendNotification(msg: str, error: bool = False):
         ],
     ).wait()
 
+def removeOldLogs(logDir: str, olderThen: int = 14):
+    subprocess.Popen(
+        [
+            "find",
+                f"'{logDir}'",
+                "-regex", "'.*\.log'",
+                "-type", "f",
+                "-mtime" f"+{olderThen}",
+                "-exec", "rm", "{}", "\;"
+        ]
+    ).wait()
+
 def main():
     logDir = pathlib.Path.home() / ".local/share/discord-launcher/"
     logDir.mkdir(parents=True, exist_ok=True)
@@ -39,6 +51,8 @@ def main():
     )
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG)
+
+    removeOldLogs(logDir)
 
     # setup
     discordPath = shutil.which("discord")
