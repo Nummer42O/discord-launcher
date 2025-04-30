@@ -29,11 +29,11 @@ def removeOldLogs(logDir: str, olderThen: int = 14):
     subprocess.Popen(
         [
             "find",
-                f"'{logDir}'",
-                "-regex", "'.*\.log'",
+                f"{logDir}",
+                "-regex", ".*\.log",
                 "-type", "f",
-                "-mtime" f"+{olderThen}",
-                "-exec", "rm", "{}", "\;"
+                "-mtime", f"+{olderThen}",
+                "-exec", "rm", "{}", "+"
         ]
     ).wait()
 
