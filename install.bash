@@ -44,11 +44,13 @@ if ${user_install}; then
 
   echo "Installing script in '${install_location}'."
   cp "${script_dir}/src/discord-launcher.py" "${install_location}"
+  chmod +x "${install_location}"
 else
   install_location=/usr/local/bin
 
   echo "Installing script in '${install_location}'."
   sudo cp "${script_dir}/src/discord-launcher.py" "${install_location}"
+  sudo chmod +x "${install_location}"
 fi
 
 if ${edit_startup}; then
