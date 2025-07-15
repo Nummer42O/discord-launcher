@@ -9,7 +9,7 @@ import pathlib
 import logging
 import shutil
 import signal
-import re
+import re, sys
 
 from typing import Optional
 
@@ -37,7 +37,7 @@ def removeOldLogs(logDir: str, olderThen: int = 14):
         ]
     ).wait()
 
-def main():
+def main() -> int:
     logDir = pathlib.Path.home() / ".local/share/discord-launcher/"
     logDir.mkdir(parents=True, exist_ok=True)
 
@@ -66,6 +66,7 @@ def main():
         r"^.* \[Modules\] Host update is available. Manual update required!$"
     )
     discordDownloadLink = "https://discord.com/api/download?platform=linux&format=deb"
+    vencordDownloadLink = "https://github.com/Vendicated/VencordInstaller/releases/latest/download/VencordInstallerCli-Linux"
 
 
     # start initial process
@@ -106,11 +107,13 @@ def main():
     # if the check ran inconclusive, don't do anything further
     if needsUpdate is None:
         logger.error("Could not determine update status, please refer to the logs above.")
-        return
+        return 1
 
     # if the check determined that a new version is available, install it
     if needsUpdate:
-        with tempfile.NamedTemporaryFile("wb", prefix="discord", suffix=".deb") as discordDebFile:
+        with (tempfile.NamedTemporaryFile("wb", prefix="discord", suffix=".deb") as discordDebFile,
+              tempfile.NamedTemporaryFile("wb", prefix="vencord", suffix="") as vencordUpdaterFile,
+              tempfile.NamedTemporaryFile("w", prefix="bothcord", suffix=".bash") as updateScriptFile):
             # download discord install/update .deb-file
             discordDebResponse = requests.get(
                 discordDownloadLink,
@@ -118,29 +121,60 @@ def main():
             )
             if not discordDebResponse.ok:
                 logger.fatal(
-                    "Failed to download update: %d: %s",
+                    "Failed to download discord update: %d: %s",
                     discordDebResponse.status_code,
                     discordDebResponse.content.decode(errors="replace")
                 )
                 sendNotification("Failed to download update. See log file for more.", True)
-                return
+                return 2
 
             # write deb package to temp file
             discordDebFile.write(discordDebResponse.content)
             discordDebFile.flush()
 
-            # install update with elevated rights
-            installationProcess = subprocess.Popen(
-                ["pkexec", "dpkg", "-i", discordDebFile.name],
+            # update vencord updater
+            vencordUpdaterResponse = requests.get(
+                url=vencordDownloadLink,
+                timeout=30
             )
-            if installationProcess.wait() != 0:
+            if not vencordUpdaterResponse.ok:
                 logger.fatal(
-                    "Failed to install discord update from %s (see above).",
-                    discordDebFile.name
+                    "Failed to downoad vencord updater file: %d: %s",
+                    vencordUpdaterResponse.status_code,
+                    vencordUpdaterResponse.content.decode(errors="replace")
+                )
+                sendNotification("Failed to download vencord updater. See log file for more.", True)
+                return 2
+
+            # write sh file to temp file
+            vencordUpdaterFile.write(vencordUpdaterResponse.content)
+            vencordUpdaterFile.flush()
+
+            # temporarily bundle both calls in a bash script
+            updateScriptFile.writelines([
+                "#! /usr/bin/bash",
+                f"dpkg -i {discordDebFile.name} || exit",
+                f"{vencordUpdaterFile.name} -branch stable -repair || exit"
+            ])
+            updateScriptFile.flush()
+
+            # install update with elevated rights
+            discordUpdateProcess = subprocess.Popen(
+                ["pkexec", "/usr/bin/bash", updateScriptFile.name],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+            with discordUpdateProcess.stdout:
+                for line in iter(discordUpdateProcess.stdout, b''):
+                    logger.debug("[Update Subprocess] %r", line)
+            if discordUpdateProcess.wait() != 0:
+                logger.fatal(
+                    "Failed to install discord update (discord update file: %s, vencord updater: %s).",
+                    discordDebFile.name,
+                    vencordUpdaterFile.name
                 )
                 sendNotification("Failed to install update. See log file for more.", True)
-                return
-        sendNotification("Successfully updated Discord.")
+                return 3
+        sendNotification("Successfully updated Discord and Vencord.")
 
     # relaunch discord
     logger.debug("Launching discord..")
@@ -152,6 +186,8 @@ def main():
         start_new_session=True
     )
 
+    return 0;
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 
