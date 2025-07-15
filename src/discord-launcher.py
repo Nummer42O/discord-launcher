@@ -114,6 +114,8 @@ def main() -> int:
         with (tempfile.NamedTemporaryFile("wb", prefix="discord", suffix=".deb") as discordDebFile,
               tempfile.NamedTemporaryFile("wb", prefix="vencord", suffix="") as vencordUpdaterFile,
               tempfile.NamedTemporaryFile("w", prefix="bothcord", suffix=".bash") as updateScriptFile):
+
+            logger.info("Getting discord update file.")
             # download discord install/update .deb-file
             discordDebResponse = requests.get(
                 discordDownloadLink,
@@ -132,6 +134,7 @@ def main() -> int:
             discordDebFile.write(discordDebResponse.content)
             discordDebFile.flush()
 
+            logger.info("Getting vencord updater.")
             # update vencord updater
             vencordUpdaterResponse = requests.get(
                 url=vencordDownloadLink,
@@ -150,23 +153,26 @@ def main() -> int:
             vencordUpdaterFile.write(vencordUpdaterResponse.content)
             vencordUpdaterFile.flush()
 
+
+            logger.info("Updating")
             # temporarily bundle both calls in a bash script
             updateScriptFile.writelines([
-                "#! /usr/bin/bash",
-                f"dpkg -i {discordDebFile.name} || exit",
-                f"{vencordUpdaterFile.name} -branch stable -repair || exit"
+                "#! /usr/bin/bash\n",
+                f"dpkg -i {discordDebFile.name} || exit\n",
+                f"chmod +x {vencordUpdaterFile.name} || exit\n"
+                f"{vencordUpdaterFile.name} -branch stable -repair || exit\n",
             ])
             updateScriptFile.flush()
 
             # install update with elevated rights
-            discordUpdateProcess = subprocess.Popen(
+            updateProcess = subprocess.Popen(
                 ["pkexec", "/usr/bin/bash", updateScriptFile.name],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             )
-            with discordUpdateProcess.stdout:
-                for line in iter(discordUpdateProcess.stdout, b''):
+            with updateProcess.stdout:
+                for line in iter(updateProcess.stdout.readline, b''):
                     logger.debug("[Update Subprocess] %r", line)
-            if discordUpdateProcess.wait() != 0:
+            if updateProcess.wait() != 0:
                 logger.fatal(
                     "Failed to install discord update (discord update file: %s, vencord updater: %s).",
                     discordDebFile.name,
