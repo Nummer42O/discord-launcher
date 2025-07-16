@@ -153,8 +153,7 @@ def main() -> int:
             vencordUpdaterFile.write(vencordUpdaterResponse.content)
             vencordUpdaterFile.flush()
 
-
-            logger.info("Updating")
+            logger.info("Writing update script.")
             # temporarily bundle both calls in a bash script
             updateScriptFile.writelines([
                 "#! /usr/bin/bash\n",
@@ -164,23 +163,25 @@ def main() -> int:
             ])
             updateScriptFile.flush()
 
-            # install update with elevated rights
-            updateProcess = subprocess.Popen(
-                ["pkexec", "/usr/bin/bash", updateScriptFile.name],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        logger.info("Updating.")
+        # install update with elevated rights
+        updateProcess = subprocess.Popen(
+            ["pkexec", "/usr/bin/bash", updateScriptFile.name],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+        with updateProcess.stdout:
+            for line in iter(updateProcess.stdout.readline, b''):
+                logger.debug("[Update Subprocess] %r", line)
+        if updateProcess.wait() != 0:
+            logger.fatal(
+                "Failed to install discord update (discord update file: %s, vencord updater: %s).",
+                discordDebFile.name,
+                vencordUpdaterFile.name
             )
-            with updateProcess.stdout:
-                for line in iter(updateProcess.stdout.readline, b''):
-                    logger.debug("[Update Subprocess] %r", line)
-            if updateProcess.wait() != 0:
-                logger.fatal(
-                    "Failed to install discord update (discord update file: %s, vencord updater: %s).",
-                    discordDebFile.name,
-                    vencordUpdaterFile.name
-                )
-                sendNotification("Failed to install update. See log file for more.", True)
-                return 3
+            sendNotification("Failed to install update. See log file for more.", True)
+            return 3
         sendNotification("Successfully updated Discord and Vencord.")
+        logger.info("Done.")
 
     # relaunch discord
     logger.debug("Launching discord..")
