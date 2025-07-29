@@ -9,7 +9,8 @@ import pathlib
 import logging
 import shutil
 import signal
-import re, sys
+import re
+import sys, os
 
 from typing import Optional
 
@@ -111,9 +112,12 @@ def main() -> int:
 
     # if the check determined that a new version is available, install it
     if needsUpdate:
-        with (tempfile.NamedTemporaryFile("wb", prefix="discord", suffix=".deb") as discordDebFile,
-              tempfile.NamedTemporaryFile("wb", prefix="vencord", suffix="") as vencordUpdaterFile,
-              tempfile.NamedTemporaryFile("w", prefix="bothcord", suffix=".bash") as updateScriptFile):
+        discordPath = pathlib.Path("/tmp/discord.deb")
+        vencordPath = pathlib.Path("/tmp/vencord")
+        scriptPath  = pathlib.Path("/tmp/bothcord.bash")
+        with (discordPath.open("wb") as discordDebFile,
+              vencordPath.open("wb") as vencordUpdaterFile,
+              scriptPath.open("w")   as updateScriptFile):
 
             logger.info("Getting discord update file.")
             # download discord install/update .deb-file
@@ -132,7 +136,6 @@ def main() -> int:
 
             # write deb package to temp file
             discordDebFile.write(discordDebResponse.content)
-            discordDebFile.flush()
 
             logger.info("Getting vencord updater.")
             # update vencord updater
@@ -151,17 +154,16 @@ def main() -> int:
 
             # write sh file to temp file
             vencordUpdaterFile.write(vencordUpdaterResponse.content)
-            vencordUpdaterFile.flush()
 
             logger.info("Writing update script.")
             # temporarily bundle both calls in a bash script
-            updateScriptFile.writelines([
-                "#! /usr/bin/bash\n",
-                f"dpkg -i {discordDebFile.name} || exit\n",
-                f"chmod +x {vencordUpdaterFile.name} || exit\n"
-                f"{vencordUpdaterFile.name} -branch stable -repair || exit\n",
-            ])
-            updateScriptFile.flush()
+            updateScriptFile.write(
+                "#! /usr/bin/bash\n"
+                f"SUDO_USER={os.environ['USER']}"
+                f"dpkg -i {discordPath} || exit\n"
+                f"chmod +x {vencordPath} || exit\n"
+                f"{vencordPath} -branch stable -repair || exit\n"
+            )
 
         logger.info("Updating.")
         # install update with elevated rights
@@ -175,13 +177,17 @@ def main() -> int:
         if updateProcess.wait() != 0:
             logger.fatal(
                 "Failed to install discord update (discord update file: %s, vencord updater: %s).",
-                discordDebFile.name,
-                vencordUpdaterFile.name
+                discordPath,
+                vencordPath
             )
             sendNotification("Failed to install update. See log file for more.", True)
             return 3
         sendNotification("Successfully updated Discord and Vencord.")
         logger.info("Done.")
+
+        discordPath.unlink()
+        vencordPath.unlink()
+        scriptPath.unlink()
 
     # relaunch discord
     logger.debug("Launching discord..")
