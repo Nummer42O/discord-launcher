@@ -31,7 +31,7 @@ def removeOldLogs(logDir: str, olderThen: int = 14):
         [
             "find",
                 f"{logDir}",
-                "-regex", ".*\.log",
+                "-regex", ".*\\.log",
                 "-type", "f",
                 "-mtime", f"+{olderThen}",
                 "-exec", "rm", "{}", "+"
@@ -56,7 +56,7 @@ def main() -> int:
     removeOldLogs(logDir)
 
     # setup
-    discordPath = shutil.which("discord")
+    discordExecutablePath = shutil.which("discord")
     timeoutTime = (
         datetime.datetime.now() + datetime.timedelta(seconds=60)
     )
@@ -73,7 +73,7 @@ def main() -> int:
     # start initial process
     discordProcess = subprocess.Popen(
         [],
-        executable=discordPath,
+        executable=discordExecutablePath,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True
@@ -159,10 +159,9 @@ def main() -> int:
             # temporarily bundle both calls in a bash script
             updateScriptFile.write(
                 "#! /usr/bin/bash\n"
-                f"SUDO_USER={os.environ['USER']}"
                 f"dpkg -i {discordPath} || exit\n"
                 f"chmod +x {vencordPath} || exit\n"
-                f"{vencordPath} -branch stable -repair || exit\n"
+                f"SUDO_USER={os.environ['USER']} {vencordPath} -branch stable -repair || exit\n"
             )
 
         logger.info("Updating.")
@@ -193,7 +192,7 @@ def main() -> int:
     logger.debug("Launching discord..")
     subprocess.Popen(
         [],
-        executable=discordPath,
+        executable=discordExecutablePath,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True
