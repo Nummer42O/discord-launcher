@@ -58,7 +58,7 @@ def main() -> int:
     # setup
     discordExecutablePath = shutil.which("discord")
     timeoutTime = (
-        datetime.datetime.now() + datetime.timedelta(seconds=60)
+        datetime.datetime.now() + datetime.timedelta(seconds=os.environ.get("DL_TIMEOUT", 200))
     )
     upToDatePattern = re.compile(
         r"^.* \[Modules\] Host is up to date.$"
